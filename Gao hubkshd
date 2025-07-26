@@ -1,0 +1,259 @@
+qlocal Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- 确保游戏加载完成
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- 显示加载通知
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "快速互动工具",
+    Text = "加载中...",
+    Duration = 3
+})
+
+-- 配置设置
+local config = {
+    fastClickEnabled = false,
+    autoScanEnabled = false,
+    scanInterval = 0.1,
+    interactionDistance = 20,
+    isUIVisible = true
+}
+
+-- 创建主UI容器
+local UIContainer = Instance.new("ScreenGui")
+UIContainer.Name = "QuickInteractionUI"
+UIContainer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+UIContainer.ResetOnSpawn = false
+UIContainer.IgnoreGuiInset = true
+
+-- 主窗口框架
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainWindow"
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+MainFrame.BorderSizePixel = 0
+MainFrame.Size = UDim2.new(0, 350, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -175, 0.5, -110)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- 添加标题栏
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+TitleBar.BorderSizePixel = 0
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "Title"
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0.1, 0, 0, 0)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+TitleLabel.TextScaled = true
+TitleLabel.Text = "快速互动-Gao hub"
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+-- 折叠按钮
+local FoldButton = Instance.new("TextButton")
+FoldButton.Name = "FoldButton"
+FoldButton.BackgroundTransparency = 1
+FoldButton.Size = UDim2.new(0, 30, 0, 30)
+FoldButton.Position = UDim2.new(1, -60, 0, 0)
+FoldButton.Font = Enum.Font.GothamBold
+FoldButton.Text = "_"
+FoldButton.TextColor3 = Color3.fromRGB(200, 200, 255)
+FoldButton.TextScaled = true
+FoldButton.TextStrokeTransparency = 0.5
+FoldButton.ZIndex = 2
+FoldButton.Parent = TitleBar
+
+-- 关闭按钮
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.BackgroundTransparency = 1
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 150, 150)
+CloseButton.TextScaled = true
+CloseButton.TextStrokeTransparency = 0.5
+CloseButton.ZIndex = 2
+CloseButton.Parent = TitleBar
+
+-- 内容区域
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "Content"
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Size = UDim2.new(1, -20, 1, -50)
+ContentFrame.Position = UDim2.new(0, 10, 0, 40)
+ContentFrame.Parent = MainFrame
+
+-- 布局
+local ContentLayout = Instance.new("UIListLayout")
+ContentLayout.Padding = UDim.new(0, 10)
+ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ContentLayout.Parent = ContentFrame
+
+-- 创建UI元素函数
+local function createToggle(parent, name, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = "ToggleFrame"
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
+    toggleFrame.LayoutOrder = #parent:GetChildren()
+    toggleFrame.Parent = parent
+
+    local toggleLabel = Instance.new("TextLabel")
+    toggleLabel.Name = "Label"
+    toggleLabel.BackgroundTransparency = 1
+    toggleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+    toggleLabel.Font = Enum.Font.Gotham
+    toggleLabel.Text = name
+    toggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    toggleLabel.TextScaled = true
+    toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    toggleLabel.Parent = toggleFrame
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "Toggle"
+    toggleButton.AnchorPoint = Vector2.new(0.5, 0.5)
+    toggleButton.Position = UDim2.new(0.9, 0, 0.5, 0)
+    toggleButton.Size = UDim2.new(0.2, 0, 0.7, 0)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.Text = "关闭"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+    toggleButton.TextScaled = true
+    toggleButton.Parent = toggleFrame
+
+    local state = false
+
+    local function updateToggle()
+        state = not state
+        if state then
+            toggleButton.BackgroundColor3 = Color3.fromRGB(60, 140, 70)
+            toggleButton.Text = "开启"
+            toggleButton.TextColor3 = Color3.fromRGB(220, 255, 220)
+        else
+            toggleButton.BackgroundColor3 = Color3.fromRGB(70, 70, 85)
+            toggleButton.Text = "关闭"
+            toggleButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        
+        if callback then
+            callback(state)
+        end
+    end
+    
+    toggleButton.MouseButton1Click:Connect(updateToggle)
+    
+    return toggleButton
+end
+
+-- ============ 创建UI内容 ============
+local fastClickToggle = createToggle(ContentFrame, "快速点击互动", function(state)
+    config.fastClickEnabled = state
+    if state then
+        -- 激活快速互动
+        getgenv().FastClickConnection = ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+            prompt.HoldDuration = 0
+        end)
+    else
+        -- 关闭快速互动
+        if getgenv().FastClickConnection then
+            getgenv().FastClickConnection:Disconnect()
+        end
+    end
+end)
+
+local autoScanToggle = createToggle(ContentFrame, "自动扫描互动", function(state)
+    config.autoScanEnabled = state
+end)
+
+-- ============ 自动扫描功能实现 ============
+task.spawn(function()
+    while true do
+        wait(config.scanInterval)
+        
+        if config.autoScanEnabled and LocalPlayer.Character then
+            local humanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoidRootPart then
+                for _, prompt in pairs(ProximityPromptService:GetActivePrompts()) do
+                    if prompt.Enabled and prompt:IsA("ProximityPrompt") then
+                        local distance = (prompt.TriggerWorldPosition - humanoidRootPart.Position).Magnitude
+                        
+                        if distance <= math.min(config.interactionDistance, prompt.MaxActivationDistance) then
+                            -- 模拟按键交互
+                            prompt:InputHoldBegin()
+                            wait(0.05)
+                            prompt:InputHoldEnd()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ============ 折叠功能实现 ============
+FoldButton.MouseButton1Click:Connect(function()
+    config.isUIVisible = not config.isUIVisible
+    
+    if config.isUIVisible then
+        -- 展开窗口
+        ContentFrame.Visible = true
+        FoldButton.Text = "_"
+        MainFrame.Size = UDim2.new(0, 350, 0, 220)
+    else
+        -- 折叠窗口
+        ContentFrame.Visible = false
+        FoldButton.Text = "+"
+        MainFrame.Size = UDim2.new(0, 350, 0, 30)
+    end
+end)
+
+-- ============ 完成UI设置 ============
+MainFrame.Parent = UIContainer
+UIContainer.Parent = PlayerGui
+
+-- 创建关闭按钮功能
+CloseButton.MouseButton1Click:Connect(function()
+    UIContainer:Destroy()
+    
+    -- 关闭所有功能
+    if getgenv().FastClickConnection then
+        getgenv().FastClickConnection:Disconnect()
+    end
+    
+    config.fastClickEnabled = false
+    config.autoScanEnabled = false
+    
+    -- 显示关闭通知
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "快速互动工具",
+        Text = "已关闭",
+        Duration = 3
+    })
+end)
+
+-- 显示加载完成通知
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "快速互动工具",
+    Text = "已成功加载!\n快速互动工具已激活",
+    Duration = 5
+})
+
+print("快速互动工具已成功加载")
