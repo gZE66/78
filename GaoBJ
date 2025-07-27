@@ -1,0 +1,421 @@
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+-- 创建主GUI（重生后不会消失）
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MarkerSystem"
+screenGui.ResetOnSpawn = false  -- 确保UI在重生后不会重置
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 创建隐藏按钮
+local hideButton = Instance.new("TextButton")
+hideButton.Name = "HideButton"
+hideButton.Text = "|||"
+hideButton.Size = UDim2.new(0, 40, 0, 40)
+hideButton.Position = UDim2.new(0, 20, 0, 20)
+hideButton.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+hideButton.TextColor3 = Color3.new(1, 1, 1)
+hideButton.TextScaled = true
+hideButton.ZIndex = 10
+hideButton.Parent = screenGui
+
+-- 标记点容器
+local markersFolder = Instance.new("Folder")
+markersFolder.Name = "Markers"
+markersFolder.Parent = screenGui
+
+-- 主窗口框架
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainWindow"
+mainFrame.Size = UDim2.new(0, 300, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.new(0.15, 0.15, 0.15)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Visible = true
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- 标题栏
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.new(0.1, 0.1, 0.5)
+titleBar.Parent = mainFrame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+titleLabel.Text = "标记点系统"
+titleLabel.TextColor3 = Color3.new(1, 1, 1)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = titleBar
+
+-- 添加窗口关闭按钮
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0.3, 0, 1, 0)
+closeButton.Position = UDim2.new(0.7, 0, 0, 0)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.new(1, 1, 1)
+closeButton.BackgroundTransparency = 1
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Parent = titleBar
+
+-- 文本框
+local textBox = Instance.new("TextBox")
+textBox.Name = "MarkerName"
+textBox.Size = UDim2.new(0.8, 0, 0, 30)
+textBox.Position = UDim2.new(0.1, 0, 0, 40)
+textBox.PlaceholderText = "输入标记名称"
+textBox.BackgroundColor3 = Color3.new(1, 1, 1)
+textBox.TextColor3 = Color3.new(0, 0, 0)
+textBox.Parent = mainFrame
+
+-- 添加标记按钮
+local addButton = Instance.new("TextButton")
+addButton.Name = "AddMarkerButton"
+addButton.Size = UDim2.new(0.8, 0, 0, 30)
+addButton.Position = UDim2.new(0.1, 0, 0, 80)
+addButton.Text = "添加标记"
+addButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.7)
+addButton.TextColor3 = Color3.new(1, 1, 1)
+addButton.Parent = mainFrame
+
+-- 功能区按钮
+local function createFuncButton(name, text, position)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(0.35, 0, 0, 30)
+    button.Position = position
+    button.Text = text
+    button.BackgroundColor3 = Color3.new(0.2, 0.2, 0.6)
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.Parent = mainFrame
+    return button
+end
+
+local showBubbleButton = createFuncButton("ShowBubble", "显示/隐藏气泡", UDim2.new(0.1, 0, 0, 260))
+local teleportButton = createFuncButton("Teleport", "传送标记", UDim2.new(0.55, 0, 0, 260))
+local deleteButton = createFuncButton("DeleteMarker", "删除标记", UDim2.new(0.1, 0, 0, 300))
+local closeMenuButton = createFuncButton("CloseMenu", "关闭系统", UDim2.new(0.55, 0, 0, 300))
+
+-- 变量管理
+local dragging
+local dragInput
+local dragStart
+local currentMarker
+local activeBubbles = {} -- 存储所有活动气泡
+
+-- 跟踪UI可见性状态
+local uiVisible = true
+
+-- 更新所有UI元素的可见性
+local function updateUIVisibility()
+    -- 主窗口可见性
+    mainFrame.Visible = uiVisible
+    
+    -- 更新所有标记点窗口可见性
+    for _, marker in ipairs(markersFolder:GetChildren()) do
+        if marker:IsA("Frame") then
+            marker.Visible = uiVisible
+        end
+    end
+end
+
+-- 隐藏按钮功能
+local function toggleVisibility()
+    uiVisible = not uiVisible
+    updateUIVisibility()
+end
+
+hideButton.MouseButton1Click:Connect(toggleVisibility)
+
+-- 关闭窗口按钮功能
+closeButton.MouseButton1Click:Connect(toggleVisibility)
+
+-- 拖动功能 (隐藏按钮和主窗口)
+local function startDrag(input, obj)
+    dragging = true
+    dragStart = input.Position
+    dragInput = input
+    obj:DragStart(input)
+end
+
+local function updateDrag(input)
+    if dragging then
+        local delta = input.Position - dragStart
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            local parent = input.UserInputState == Enum.UserInputState.Begin and hideButton or mainFrame
+            local pos = UDim2.new(
+                0, parent.Position.X.Offset + delta.X,
+                0, parent.Position.Y.Offset + delta.Y
+            )
+            parent.Position = pos
+            dragStart = input.Position
+        end
+    end
+end
+
+local function endDrag()
+    dragging = false
+end
+
+hideButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        startDrag(input, hideButton)
+    end
+end)
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        startDrag(input, mainFrame)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        updateDrag(input)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        endDrag()
+    end
+end)
+
+-- 创建标记窗口
+local function createMarkerWindow(name, position)
+    local markerFrame = Instance.new("Frame")
+    markerFrame.Name = name.."Marker"
+    markerFrame.Size = UDim2.new(0, 200, 0, 120)
+    markerFrame.Position = UDim2.new(0.7, -100, 0.3, -60)
+    markerFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    markerFrame.Active = true
+    markerFrame.Draggable = true
+    markerFrame.Visible = uiVisible -- 跟随当前UI可见性状态
+    markerFrame.Parent = markersFolder
+
+    local markerTitle = Instance.new("TextLabel")
+    markerTitle.Size = UDim2.new(1, 0, 0, 25)
+    markerTitle.BackgroundColor3 = Color3.new(0.3, 0.3, 0.6)
+    markerTitle.Text = name
+    markerTitle.TextColor3 = Color3.new(1, 1, 1)
+    markerTitle.Parent = markerFrame
+
+    local positionText = Instance.new("TextLabel")
+    positionText.Size = UDim2.new(1, 0, 0, 40)
+    positionText.Position = UDim2.new(0, 0, 0, 30)
+    positionText.BackgroundTransparency = 1
+    positionText.Text = string.format("X: %.1f, Y: %.1f, Z: %.1f", position.X, position.Y, position.Z)
+    positionText.TextColor3 = Color3.new(1, 1, 1)
+    positionText.Parent = markerFrame
+
+    local selectButton = Instance.new("TextButton")
+    selectButton.Name = "SelectButton"
+    selectButton.Size = UDim2.new(0.9, 0, 0, 30)
+    selectButton.Position = UDim2.new(0.05, 0, 0, 80)
+    selectButton.Text = "选择标记"
+    selectButton.BackgroundColor3 = Color3.new(0.3, 0.3, 0.6)
+    selectButton.TextColor3 = Color3.new(1, 1, 1)
+    selectButton.Parent = markerFrame
+
+    -- 选择功能
+    selectButton.MouseButton1Click:Connect(function()
+        currentMarker = {Name = name, Position = position, Frame = markerFrame}
+        for _, marker in ipairs(markersFolder:GetChildren()) do
+            if marker:IsA("Frame") then
+                marker.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+            end
+        end
+        markerFrame.BackgroundColor3 = Color3.new(0.3, 0.2, 0.2)
+    end)
+
+    -- 拖动功能
+    markerFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            startDrag(input, markerFrame)
+        end
+    end)
+    
+    -- 当窗口被拖动时更新位置
+    markerFrame.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateDrag(input)
+        end
+    end)
+end
+
+-- 添加标记功能
+addButton.MouseButton1Click:Connect(function()
+    local name = textBox.Text
+    if name == "" then 
+        textBox.PlaceholderText = "名称不能为空！"
+        textBox.PlaceholderColor3 = Color3.new(1, 0.3, 0.3)
+        return
+    end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    createMarkerWindow(name, root.Position)
+    textBox.Text = ""
+    textBox.PlaceholderText = "输入标记名称"
+end)
+
+-- 显示/隐藏气泡功能
+local function toggleBubbleVisibility()
+    if not currentMarker then
+        local warnLabel = Instance.new("TextLabel")
+        warnLabel.Text = "请先选择一个标记点"
+        warnLabel.TextColor3 = Color3.new(1, 0, 0)
+        warnLabel.Size = UDim2.new(0, 200, 0, 30)
+        warnLabel.Position = UDim2.new(0.5, -100, 0.8, -30)
+        warnLabel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        warnLabel.Parent = screenGui
+        
+        task.wait(2)
+        warnLabel:Destroy()
+        return
+    end
+
+    -- 检查当前标记点是否已有气泡
+    local currentBubble = activeBubbles[currentMarker.Name]
+    
+    if currentBubble then
+        -- 如果气泡存在则移除
+        activeBubbles[currentMarker.Name] = nil
+        currentBubble:Destroy()
+    else
+        -- 创建新的气泡
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = currentMarker.Name.."Bubble"
+        billboard.AlwaysOnTop = true
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.MaxDistance = 200
+        billboard.Enabled = true
+        billboard.LightInfluence = 0
+        billboard.Brightness = 5
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.BackgroundTransparency = 0.3
+        frame.BackgroundColor3 = Color3.new(0.1, 0.3, 0.7)
+        frame.BorderSizePixel = 0
+        frame.Parent = billboard
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.Text = currentMarker.Name
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.TextScaled = true
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.SourceSansBold
+        label.Parent = frame
+
+        -- 设置气泡位置
+        local part = Instance.new("Part")
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 1
+        part.Size = Vector3.new(1, 1, 1)
+        part.CFrame = CFrame.new(currentMarker.Position)
+        part.Parent = workspace
+        
+        billboard.Adornee = part
+        billboard.Parent = screenGui  -- 放入UI层保证气泡显示
+        
+        -- 存储在活动气泡中
+        activeBubbles[currentMarker.Name] = {
+            Billboard = billboard,
+            Part = part
+        }
+        
+        -- 添加永久可见的提示
+        showBubbleButton.Text = "隐藏 "..currentMarker.Name
+    end
+end
+
+showBubbleButton.MouseButton1Click:Connect(toggleBubbleVisibility)
+
+-- 传送功能
+teleportButton.MouseButton1Click:Connect(function()
+    if not currentMarker then
+        local warnLabel = Instance.new("TextLabel")
+        warnLabel.Text = "请先选择一个标记点"
+        warnLabel.TextColor3 = Color3.new(1, 0, 0)
+        warnLabel.Size = UDim2.new(0, 200, 0, 30)
+        warnLabel.Position = UDim2.new(0.5, -100, 0.8, -30)
+        warnLabel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        warnLabel.Parent = screenGui
+        
+        task.wait(2)
+        warnLabel:Destroy()
+        return
+    end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    -- 防止角色卡住
+    humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
+    task.wait(0.1)
+    root.CFrame = CFrame.new(currentMarker.Position) + Vector3.new(0, 3, 0)
+end)
+
+-- 删除标记功能
+deleteButton.MouseButton1Click:Connect(function()
+    if not currentMarker then
+        local warnLabel = Instance.new("TextLabel")
+        warnLabel.Text = "请先选择一个标记点"
+        warnLabel.TextColor3 = Color3.new(1, 0, 0)
+        warnLabel.Size = UDim2.new(0, 200, 0, 30)
+        warnLabel.Position = UDim2.new(0.5, -100, 0.8, -30)
+        warnLabel.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+        warnLabel.Parent = screenGui
+        
+        task.wait(2)
+        warnLabel:Destroy()
+        return
+    end
+    
+    local markerName = currentMarker.Name
+    currentMarker.Frame:Destroy()
+    
+    -- 如果该标记点有气泡，一并删除
+    if activeBubbles[markerName] then
+        activeBubbles[markerName].Billboard:Destroy()
+        activeBubbles[markerName].Part:Destroy()
+        activeBubbles[markerName] = nil
+    end
+    
+    -- 更新按钮文本
+    showBubbleButton.Text = "显示/隐藏气泡"
+    
+    currentMarker = nil
+end)
+
+-- 关闭系统按钮
+closeMenuButton.MouseButton1Click:Connect(function()
+    -- 删除所有气泡
+    for markerName, bubbleData in pairs(activeBubbles) do
+        bubbleData.Billboard:Destroy()
+        bubbleData.Part:Destroy()
+    end
+    activeBubbles = {}
+    
+    -- 删除整个UI系统
+    screenGui:Destroy()
+end)
