@@ -1,0 +1,581 @@
+-- 本地脚本 (LocalScript)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- 创建主界面
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "NPC追踪器"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+-- 创建隐藏/显示按钮 (屏幕左侧中间位置)
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "隐藏显示按钮"
+toggleBtn.Size = UDim2.new(0, 40, 0, 40)
+toggleBtn.Position = UDim2.new(0, 5, 0.5, -20)  -- 左侧中间
+toggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+toggleBtn.BackgroundTransparency = 0.3
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.TextSize = 20
+toggleBtn.Text = "<"
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.BorderSizePixel = 0
+toggleBtn.AutoButtonColor = false
+toggleBtn.ZIndex = 10
+
+-- 添加圆角效果
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0.5, 0)
+corner.Parent = toggleBtn
+
+toggleBtn.Parent = screenGui
+
+-- 创建主窗口
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "主窗口"
+mainFrame.Size = UDim2.new(0.3, 0, 0.3, 0)
+mainFrame.Position = UDim2.new(0.5, -mainFrame.Size.X.Offset/2, 0.5, -mainFrame.Size.Y.Offset/2)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = screenGui
+
+-- 标题栏 (添加拖动功能)
+local titleBar = Instance.new("Frame")
+titleBar.Name = "标题栏"
+titleBar.Size = UDim2.new(1, 0, 0.15, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+titleBar.BorderSizePixel = 0
+titleBar.ZIndex = 2
+titleBar.Parent = mainFrame
+
+-- 标题文本
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "标题"
+titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "NPC追踪器"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 2
+titleLabel.Parent = titleBar
+
+-- 关闭按钮
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "关闭按钮"
+closeButton.Size = UDim2.new(0.15, 0, 1, 0)
+closeButton.Position = UDim2.new(0.85, 0, 0, 0)
+closeButton.BackgroundTransparency = 1
+closeButton.Text = "✕"
+closeButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+closeButton.TextSize = 16
+closeButton.ZIndex = 2
+closeButton.Parent = titleBar
+
+-- 内容区域
+local contentFrame = Instance.new("Frame")
+contentFrame.Name = "内容区"
+contentFrame.Size = UDim2.new(1, 0, 0.85, 0)
+contentFrame.Position = UDim2.new(0, 0, 0.15, 0)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- NPC定位开关
+local trackerLabel = Instance.new("TextLabel")
+trackerLabel.Name = "定位标签"
+trackerLabel.Size = UDim2.new(0.6, 0, 0.15, 0)
+trackerLabel.Position = UDim2.new(0.05, 0, 0.1, 0)
+trackerLabel.BackgroundTransparency = 1
+trackerLabel.Text = "NPC定位:"
+trackerLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+trackerLabel.TextXAlignment = Enum.TextXAlignment.Left
+trackerLabel.Font = Enum.Font.Gotham
+trackerLabel.TextSize = 14
+trackerLabel.Parent = contentFrame
+
+local trackerToggle = Instance.new("TextButton")
+trackerToggle.Name = "定位开关"
+trackerToggle.Size = UDim2.new(0.1, 0, 0.15, 0)
+trackerToggle.Position = UDim2.new(0.6, 0, 0.1, 0)
+trackerToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+trackerToggle.Text = ""
+trackerToggle.BorderSizePixel = 0
+trackerToggle.Parent = contentFrame
+
+local trackerToggleInner = Instance.new("Frame")
+trackerToggleInner.Name = "开关内部"
+trackerToggleInner.Size = UDim2.new(0.4, 0, 0.8, 0)
+trackerToggleInner.Position = UDim2.new(0.05, 0, 0.1, 0)
+trackerToggleInner.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+trackerToggleInner.BorderSizePixel = 0
+trackerToggleInner.Parent = trackerToggle
+
+-- 高亮开关
+local highlightLabel = Instance.new("TextLabel")
+highlightLabel.Name = "高亮标签"
+highlightLabel.Size = UDim2.new(0.6, 0, 0.15, 0)
+highlightLabel.Position = UDim2.new(0.05, 0, 0.35, 0)
+highlightLabel.BackgroundTransparency = 1
+highlightLabel.Text = "NPC高亮:"
+highlightLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+highlightLabel.TextXAlignment = Enum.TextXAlignment.Left
+highlightLabel.Font = Enum.Font.Gotham
+highlightLabel.TextSize = 14
+highlightLabel.Parent = contentFrame
+
+local highlightToggle = Instance.new("TextButton")
+highlightToggle.Name = "高亮开关"
+highlightToggle.Size = UDim2.new(0.1, 0, 0.15, 0)
+highlightToggle.Position = UDim2.new(0.6, 0, 0.35, 0)
+highlightToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+highlightToggle.Text = ""
+highlightToggle.BorderSizePixel = 0
+highlightToggle.Parent = contentFrame
+
+local highlightToggleInner = Instance.new("Frame")
+highlightToggleInner.Name = "开关内部"
+highlightToggleInner.Size = UDim2.new(0.4, 0, 0.8, 0)
+highlightToggleInner.Position = UDim2.new(0.05, 0, 0.1, 0)
+highlightToggleInner.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+highlightToggleInner.BorderSizePixel = 0
+highlightToggleInner.Parent = highlightToggle
+
+-- 刷新按钮
+local refreshButton = Instance.new("TextButton")
+refreshButton.Name = "刷新按钮"
+refreshButton.Size = UDim2.new(0.9, 0, 0.2, 0)
+refreshButton.Position = UDim2.new(0.05, 0, 0.65, 0)
+refreshButton.BackgroundColor3 = Color3.fromRGB(60, 100, 180)
+refreshButton.BorderSizePixel = 0
+refreshButton.Text = "刷新NPC"
+refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshButton.Font = Enum.Font.GothamBold
+refreshButton.TextSize = 14
+refreshButton.Parent = contentFrame
+
+-- 状态变量
+local isWindowVisible = true  -- 窗口是否可见
+local isTrackerEnabled = true  -- 默认开启
+local isHighlightEnabled = true  -- 默认开启
+
+-- 存储NPC跟踪数据
+local trackedNPCs = {}  -- 用于记录跟踪的NPC
+local npcBillboards = {}  -- NPC的标记
+local npcHighlights = {}  -- NPC的高亮效果
+local updateConn = nil  -- 更新循环连接
+
+-- 窗口拖动变量
+local isDragging = false
+local dragStartPos
+local frameStartPos
+
+-- 获取玩家角色
+local function getPlayerCharacter()
+    return Player.Character or Player.CharacterAdded:Wait()
+end
+
+-- 获取玩家根部位
+local function getPlayerRoot()
+    local character = getPlayerCharacter()
+    if not character then return nil end
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+end
+
+-- 检查对象是否为NPC
+local function isNPC(model)
+    if not model:IsA("Model") then return false end
+    
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    local rootPart = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart
+    
+    if humanoid and rootPart then
+        -- 排除玩家角色
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character == model then
+                return false
+            end
+        end
+        return true
+    end
+    return false
+end
+
+-- 查找所有NPC
+local function findNPCs()
+    local npcs = {}
+    
+    -- 检查工作区
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if isNPC(obj) then
+            table.insert(npcs, obj)
+        end
+    end
+    
+    -- 检查工作区中的文件夹
+    for _, folder in ipairs(workspace:GetChildren()) do
+        if folder:IsA("Folder") or folder:IsA("Model") then
+            for _, obj in ipairs(folder:GetDescendants()) do
+                if isNPC(obj) then
+                    table.insert(npcs, obj)
+                end
+            end
+        end
+    end
+    
+    return npcs
+end
+
+-- 创建高亮效果
+local function createHighlight(npc)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "NPC高亮"
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillColor = Color3.new(0, 1, 1)  -- 亮青色
+    highlight.FillTransparency = 0.2
+    highlight.OutlineColor = Color3.new(0, 1, 0)  -- 绿色轮廓
+    highlight.OutlineTransparency = 0
+    highlight.Parent = npc
+    return highlight
+end
+
+-- 创建NPC标记
+local function createBillboard(npc)
+    local rootPart = npc:FindFirstChild("HumanoidRootPart") or 
+                    npc:FindFirstChild("Head") or 
+                    npc.PrimaryPart
+    
+    if not rootPart then
+        warn("找不到NPC的根部位:".. npc.Name)
+        return nil
+    end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "NPC标记"
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(8, 0, 2.5, 0)  -- 基础尺寸
+    billboard.StudsOffset = Vector3.new(0, 3, 0)  -- 更高的位置
+    billboard.Adornee = rootPart
+    billboard.Parent = npc
+    
+    -- 存储基础尺寸用于缩放
+    billboard:SetAttribute("BaseSize", UDim2.new(8, 0, 2.5, 0))
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.new(0, 0, 0)
+    frame.BackgroundTransparency = 0.5
+    frame.Parent = billboard
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0.1, 0)
+    corner.Parent = frame
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "名称"
+    nameLabel.Size = UDim2.new(1, -10, 0.4, 0)
+    nameLabel.Position = UDim2.new(0, 5, 0, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = npc.Name
+    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextSize = 16
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = frame
+    
+    local distanceLabel = Instance.new("TextLabel")
+    distanceLabel.Name = "距离"
+    distanceLabel.Size = UDim2.new(0.5, -5, 0.4, 0)
+    distanceLabel.Position = UDim2.new(0, 5, 0.4, 0)
+    distanceLabel.BackgroundTransparency = 1
+    distanceLabel.Font = Enum.Font.Gotham
+    distanceLabel.TextSize = 14
+    distanceLabel.TextStrokeTransparency = 0
+    distanceLabel.TextXAlignment = Enum.TextXAlignment.Left
+    distanceLabel.Parent = frame
+    
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Name = "生命值"
+    healthLabel.Size = UDim2.new(0.5, -5, 0.4, 0)
+    healthLabel.Position = UDim2.new(0.5, 5, 0.4, 0)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Font = Enum.Font.Gotham
+    healthLabel.TextSize = 14
+    healthLabel.TextStrokeTransparency = 0
+    healthLabel.TextXAlignment = Enum.TextXAlignment.Right
+    healthLabel.Parent = frame
+    
+    return billboard
+end
+
+-- 更新NPC标记（添加距离缩放）
+local function updateBillboard(npc, billboard)
+    local humanoid = npc:FindFirstChildOfClass("Humanoid")
+    local playerRoot = getPlayerRoot()
+    local rootPart = billboard.Adornee
+    
+    if not playerRoot or not rootPart then
+        return
+    end
+    
+    local distance = (playerRoot.Position - rootPart.Position).Magnitude
+    
+    -- 设置距离文本颜色
+    local distanceLabel = billboard.Frame:FindFirstChild("距离")
+    if distanceLabel then
+        if distance < 20 then
+            distanceLabel.TextColor3 = Color3.new(1, 0, 0)  -- 红色
+        elseif distance < 50 then
+            distanceLabel.TextColor3 = Color3.new(1, 1, 0)  -- 黄色
+        else
+            distanceLabel.TextColor3 = Color3.new(0, 1, 0)  -- 绿色
+        end
+        distanceLabel.Text = string.format("距离: %.1f米", distance)
+    end
+    
+    -- 设置生命值文本
+    local healthLabel = billboard.Frame:FindFirstChild("生命值")
+    if healthLabel and humanoid then
+        healthLabel.Text = string.format("生命: %d/%d", math.floor(humanoid.Health), math.floor(humanoid.MaxHealth))
+    end
+    
+    -- 根据距离缩放UI
+    local baseSize = billboard:GetAttribute("BaseSize") or UDim2.new(8, 0, 2.5, 0)
+    local scale = 1
+    
+    -- 距离越远，UI越小
+    if distance > 50 then
+        scale = math.max(0.4, 1 - (distance - 50) / 200)  -- 最小缩放为0.4
+    end
+    
+    billboard.Size = UDim2.new(
+        baseSize.X.Scale * scale,
+        baseSize.X.Offset * scale,
+        baseSize.Y.Scale * scale,
+        baseSize.Y.Offset * scale
+    )
+end
+
+-- 清理所有NPC标记
+local function clearTrackedNPCs()
+    for _, billboard in pairs(npcBillboards) do
+        if billboard and billboard.Parent then
+            billboard:Destroy()
+        end
+    end
+    
+    for _, highlight in pairs(npcHighlights) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    
+    trackedNPCs = {}
+    npcBillboards = {}
+    npcHighlights = {}
+end
+
+-- 初始化NPC跟踪
+local function trackNPCs()
+    clearTrackedNPCs()
+    
+    -- 查找所有NPC
+    local npcs = findNPCs()
+    
+    for _, npc in ipairs(npcs) do
+        local humanoid = npc:FindFirstChildOfClass("Humanoid")
+        local rootPart = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head") or npc.PrimaryPart
+        
+        if humanoid and rootPart then
+            trackedNPCs[npc] = true
+            
+            -- 创建标记
+            local billboard = createBillboard(npc)
+            if billboard then
+                npcBillboards[npc] = billboard
+            end
+            
+            -- 创建高亮效果
+            if isHighlightEnabled then
+                local highlight = createHighlight(npc)
+                npcHighlights[npc] = highlight
+            end
+        end
+    end
+end
+
+-- 切换开关状态
+local function toggleSwitch(button, innerFrame, state)
+    if state then
+        TweenService:Create(innerFrame, TweenInfo.new(0.2), {Position = UDim2.new(0.55, 0, 0.1, 0), BackgroundColor3 = Color3.fromRGB(60, 200, 80)}):Play()
+    else
+        TweenService:Create(innerFrame, TweenInfo.new(0.2), {Position = UDim2.new(0.05, 0, 0.1, 0), BackgroundColor3 = Color3.fromRGB(200, 60, 60)}):Play()
+    end
+end
+
+-- 窗口拖动功能
+local function startDrag(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        frameStartPos = mainFrame.Position
+    end
+end
+
+local function updateDrag(input)
+    if isDragging then
+        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
+        mainFrame.Position = UDim2.new(
+            frameStartPos.X.Scale, 
+            frameStartPos.X.Offset + delta.X,
+            frameStartPos.Y.Scale,
+            frameStartPos.Y.Offset + delta.Y
+        )
+    end
+end
+
+local function stopDrag(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end
+
+-- 设置拖动事件
+titleBar.InputBegan:Connect(startDrag)
+titleBar.InputChanged:Connect(updateDrag)
+UserInputService.InputEnded:Connect(stopDrag)
+
+-- 按钮点击事件
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+-- 隐藏/显示按钮点击事件
+toggleBtn.MouseButton1Click:Connect(function()
+    isWindowVisible = not isWindowVisible
+    
+    if isWindowVisible then
+        -- 显示窗口
+        mainFrame.Visible = true
+        toggleBtn.Text = "<"
+        
+        -- 强制刷新所有NPC数据
+        if isTrackerEnabled then
+            for npc, billboard in pairs(npcBillboards) do
+                if billboard and billboard.Parent then
+                    updateBillboard(npc, billboard)
+                end
+            end
+        end
+    else
+        -- 隐藏窗口
+        mainFrame.Visible = false
+        toggleBtn.Text = ">"
+    end
+end)
+
+trackerToggle.MouseButton1Click:Connect(function()
+    isTrackerEnabled = not isTrackerEnabled
+    toggleSwitch(trackerToggle, trackerToggleInner, isTrackerEnabled)
+    
+    if not isTrackerEnabled then
+        clearTrackedNPCs()
+        if updateConn then
+            updateConn:Disconnect()
+            updateConn = nil
+        end
+    else
+        trackNPCs()
+        startUpdateLoop()
+    end
+end)
+
+highlightToggle.MouseButton1Click:Connect(function()
+    isHighlightEnabled = not isHighlightEnabled
+    toggleSwitch(highlightToggle, highlightToggleInner, isHighlightEnabled)
+    
+    if isTrackerEnabled then
+        for npc, _ in pairs(trackedNPCs) do
+            if npcHighlights[npc] and npcHighlights[npc].Parent then
+                npcHighlights[npc]:Destroy()
+            end
+            
+            if isHighlightEnabled then
+                npcHighlights[npc] = createHighlight(npc)
+            end
+        end
+    end
+end)
+
+refreshButton.MouseButton1Click:Connect(function()
+    if isTrackerEnabled then
+        trackNPCs()
+    end
+end)
+
+-- 初始UI状态
+toggleSwitch(trackerToggle, trackerToggleInner, isTrackerEnabled)
+toggleSwitch(highlightToggle, highlightToggleInner, isHighlightEnabled)
+
+-- 更新循环函数
+local function updateTrackedNPCs()
+    local playerRoot = getPlayerRoot()
+    if not playerRoot then return end
+    
+    -- 清理无效NPC
+    for npc, _ in pairs(trackedNPCs) do
+        if not npc:IsDescendantOf(workspace) then
+            if npcBillboards[npc] then 
+                npcBillboards[npc]:Destroy()
+                npcBillboards[npc] = nil
+            end
+            if npcHighlights[npc] then 
+                npcHighlights[npc]:Destroy()
+                npcHighlights[npc] = nil
+            end
+            trackedNPCs[npc] = nil
+        end
+    end
+    
+    -- 更新所有有效NPC
+    for npc, _ in pairs(trackedNPCs) do
+        if npcBillboards[npc] and npcBillboards[npc].Parent and npcBillboards[npc].Adornee then
+            updateBillboard(npc, npcBillboards[npc])
+        else
+            -- 如果标记丢失，尝试重新创建
+            if npc:IsDescendantOf(workspace) then
+                npcBillboards[npc] = createBillboard(npc)
+            end
+        end
+    end
+end
+
+-- 启动更新循环
+local function startUpdateLoop()
+    if updateConn then
+        updateConn:Disconnect()
+    end
+    
+    updateConn = RunService.Heartbeat:Connect(updateTrackedNPCs)
+end
+
+-- 初始启动更新循环
+if isTrackerEnabled then
+    trackNPCs()
+    startUpdateLoop()
+end
+
+-- 自动检查新NPC
+workspace.DescendantAdded:Connect(function(descendant)
+    if isNPC(descendant) and isTrackerEnabled then
+        trackNPCs()
+    end
+end)
