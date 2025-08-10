@@ -1,0 +1,243 @@
+-- 获取服务
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local StatsService = game:GetService("Stats")
+
+-- 创建主UI
+local PerformanceUI = Instance.new("ScreenGui")
+PerformanceUI.Name = "PerformanceMonitor"
+PerformanceUI.ResetOnSpawn = false
+PerformanceUI.Parent = PlayerGui
+
+-- 创建主框架
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0.2, 0, 0.12, 0) -- 稍微加宽以容纳平均FPS
+MainFrame.Position = UDim2.new(0.5, 0, 0.1, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BackgroundTransparency = 0.5
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = PerformanceUI
+
+-- 添加圆角
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0.1, 0)
+UICorner.Parent = MainFrame
+
+-- 创建FPS显示文本
+local FPSText = Instance.new("TextLabel")
+FPSText.Name = "FPSText"
+FPSText.Size = UDim2.new(0.45, -5, 0.4, -5)
+FPSText.Position = UDim2.new(0, 5, 0, 5)
+FPSText.BackgroundTransparency = 1
+FPSText.Text = "FPS: --"
+FPSText.TextColor3 = Color3.fromRGB(255, 255, 255)
+FPSText.Font = Enum.Font.SourceSansBold
+FPSText.TextSize = 16
+FPSText.TextXAlignment = Enum.TextXAlignment.Left
+FPSText.Parent = MainFrame
+
+-- 创建平均FPS显示文本 (中文显示)
+local AvgFPSText = Instance.new("TextLabel")
+AvgFPSText.Name = "AvgFPSText"
+AvgFPSText.Size = UDim2.new(0.45, -5, 0.4, -5)
+AvgFPSText.Position = UDim2.new(0.55, 5, 0, 5)
+AvgFPSText.BackgroundTransparency = 1
+AvgFPSText.Text = "平均FPS: --"  -- 改为中文显示
+AvgFPSText.TextColor3 = Color3.fromRGB(200, 200, 200) -- 灰色区分
+AvgFPSText.Font = Enum.Font.SourceSansBold
+AvgFPSText.TextSize = 16
+AvgFPSText.TextXAlignment = Enum.TextXAlignment.Left
+AvgFPSText.Parent = MainFrame
+
+-- 创建PING显示文本
+local PINGText = Instance.new("TextLabel")
+PINGText.Name = "PINGText"
+PINGText.Size = UDim2.new(1, -10, 0.4, -5)
+PINGText.Position = UDim2.new(0, 5, 0.5, 5)
+PINGText.BackgroundTransparency = 1
+PINGText.Text = "PING: --"
+PINGText.TextColor3 = Color3.fromRGB(255, 255, 255)
+PINGText.Font = Enum.Font.SourceSansBold
+PINGText.TextSize = 16
+PINGText.TextXAlignment = Enum.TextXAlignment.Left
+PINGText.Parent = MainFrame
+
+-- 拖动功能变量
+local isDragging = false
+local dragStartPos, frameStartPos
+
+-- 开始拖动
+local function StartDrag(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = true
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        frameStartPos = Vector2.new(MainFrame.Position.X.Offset, MainFrame.Position.Y.Offset)
+        
+        -- 改变光标样式
+        local dragConnection
+        dragConnection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                isDragging = false
+                dragConnection:Disconnect()
+            end
+        end)
+    end
+end
+
+-- 更新拖动位置
+local function UpdateDrag(input)
+    if isDragging then
+        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartPos
+        local newPos = frameStartPos + delta
+        
+        -- 限制在屏幕范围内
+        local viewportSize = workspace.CurrentCamera.ViewportSize
+        local frameSize = MainFrame.AbsoluteSize
+        
+        newPos = Vector2.new(
+            math.clamp(newPos.X, 0, viewportSize.X - frameSize.X),
+            math.clamp(newPos.Y, 0, viewportSize.Y - frameSize.Y)
+        )
+        
+        MainFrame.Position = UDim2.new(0, newPos.X, 0, newPos.Y)
+    end
+end
+
+-- 设置拖动事件
+MainFrame.InputBegan:Connect(StartDrag)
+UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        UpdateDrag(input)
+    end
+end)
+
+-- 手机端优化
+if UserInputService.TouchEnabled then
+    -- 增大尺寸便于触摸
+    MainFrame.Size = UDim2.new(0.25, 0, 0.15, 0)
+    
+    -- 增大字体
+    FPSText.TextSize = 18
+    AvgFPSText.TextSize = 18
+    PINGText.TextSize = 18
+end
+
+-- 性能监控变量
+local lastTick = tick()
+local frameCount = 0
+local currentFPS = 0
+local currentPING = 0
+
+-- 平均FPS计算变量
+local fpsHistory = {} -- 存储历史FPS值
+local maxHistorySize = 15 -- 存储15个样本（1.5秒，每0.1秒一个）
+local lastAvgUpdate = 0 -- 上次更新平均FPS的时间
+local averageFPS = 0 -- 计算出的平均FPS
+
+-- 计算FPS的函数
+local function CalculateFPS()
+    frameCount = frameCount + 1
+    
+    local now = tick()
+    local elapsed = now - lastTick
+    
+    if elapsed >= 0.1 then -- 每0.1秒更新一次
+        currentFPS = math.floor(frameCount / elapsed + 0.5)
+        frameCount = 0
+        lastTick = now
+        
+        -- 添加到FPS历史记录
+        table.insert(fpsHistory, currentFPS)
+        if #fpsHistory > maxHistorySize then
+            table.remove(fpsHistory, 1)
+        end
+        
+        -- 更新FPS显示
+        FPSText.Text = "FPS: " .. currentFPS
+        
+        -- 根据FPS值改变颜色
+        if currentFPS < 5 then
+            FPSText.TextColor3 = Color3.fromRGB(255, 0, 0) -- 红色
+        elseif currentFPS < 12 then
+            FPSText.TextColor3 = Color3.fromRGB(255, 255, 0) -- 黄色
+        else
+            FPSText.TextColor3 = Color3.fromRGB(255, 255, 255) -- 白色
+        end
+    end
+end
+
+-- 计算平均FPS的函数
+local function CalculateAverageFPS()
+    if #fpsHistory == 0 then return 0 end
+    
+    local total = 0
+    for _, fps in ipairs(fpsHistory) do
+        total = total + fps
+    end
+    
+    return math.floor(total / #fpsHistory + 0.5)
+end
+
+-- 更新平均FPS显示
+local function UpdateAverageFPS()
+    averageFPS = CalculateAverageFPS()
+    AvgFPSText.Text = "平均FPS: " .. averageFPS  -- 改为中文显示
+    
+    -- 根据平均FPS值改变颜色
+    if averageFPS < 5 then
+        AvgFPSText.TextColor3 = Color3.fromRGB(255, 0, 0) -- 红色
+    elseif averageFPS < 12 then
+        AvgFPSText.TextColor3 = Color3.fromRGB(255, 255, 0) -- 黄色
+    else
+        AvgFPSText.TextColor3 = Color3.fromRGB(200, 200, 200) -- 灰色
+    end
+end
+
+-- 计算PING的函数
+local function CalculatePING()
+    local success, ping = pcall(function()
+        return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue()
+    end)
+    
+    if success and ping then
+        currentPING = math.floor(ping)
+        
+        -- 更新PING显示
+        PINGText.Text = "PING: " .. currentPING .. "ms"
+        
+        -- 根据PING值改变颜色
+        if currentPING > 300 then
+            PINGText.TextColor3 = Color3.fromRGB(255, 0, 0) -- 红色
+        else
+            PINGText.TextColor3 = Color3.fromRGB(255, 255, 255) -- 白色
+        end
+    else
+        PINGText.Text = "PING: --"
+    end
+end
+
+-- 每帧更新FPS计数器
+RunService.Heartbeat:Connect(CalculateFPS)
+
+-- 每0.1秒更新PING和检查是否需要更新平均FPS
+local lastPingCheck = 0
+RunService.Heartbeat:Connect(function()
+    local now = tick()
+    
+    -- 更新PING
+    if now - lastPingCheck >= 0.1 then
+        CalculatePING()
+        lastPingCheck = now
+        
+        -- 检查是否需要更新平均FPS (每1.5秒)
+        if now - lastAvgUpdate >= 1.5 then
+            UpdateAverageFPS()
+            lastAvgUpdate = now
+        end
+    end
+end)
