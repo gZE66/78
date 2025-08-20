@@ -1,0 +1,83 @@
+-- 外部加载脚本：负责创建提示UI并控制其行为
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- 创建 RemoteEvent 用于接收外部数据并生成提示
+local CustomNotificationEvent = Instance.new("RemoteEvent")
+CustomNotificationEvent.Name = "CustomNotificationEvent"
+CustomNotificationEvent.Parent = ReplicatedStorage
+
+-- 监听外部脚本发送的数据
+CustomNotificationEvent.OnServerEvent:Connect(function(player, themeColor, displayTime, imageID, titleText, messageText)
+    -- 创建UI提示系统
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Parent = player.PlayerGui
+    ScreenGui.Name = "CustomNotificationGui"
+
+    -- 用于设置提示的默认属性
+    themeColor = themeColor or Color3.fromRGB(0, 255, 0)  -- 默认绿色
+    displayTime = displayTime or 5  -- 默认5秒
+    imageID = imageID or "rbxassetid://1234567890"  -- 默认图片ID
+
+    -- 创建提示框
+    local NotificationFrame = Instance.new("Frame")
+    NotificationFrame.Size = UDim2.new(0, 350, 0, 100)
+    NotificationFrame.Position = UDim2.new(0, 0, 1, -120)
+    NotificationFrame.BackgroundColor3 = themeColor
+    NotificationFrame.BorderSizePixel = 0
+    NotificationFrame.Parent = ScreenGui
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Text = titleText
+    TitleLabel.Size = UDim2.new(1, 0, 0.4, 0)
+    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.TextSize = 18
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = NotificationFrame
+
+    local MessageLabel = Instance.new("TextLabel")
+    MessageLabel.Text = messageText
+    MessageLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    MessageLabel.Position = UDim2.new(0, 0, 0.4, 0)
+    MessageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MessageLabel.Font = Enum.Font.Gotham
+    MessageLabel.TextSize = 14
+    MessageLabel.BackgroundTransparency = 1
+    MessageLabel.Parent = NotificationFrame
+
+    -- 创建进度条
+    local ProgressBar = Instance.new("Frame")
+    ProgressBar.Size = UDim2.new(1, 0, 0.1, 0)
+    ProgressBar.Position = UDim2.new(0, 0, 0.9, 0)
+    ProgressBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ProgressBar.Parent = NotificationFrame
+
+    local ProgressFill = Instance.new("Frame")
+    ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+    ProgressFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    ProgressFill.Parent = ProgressBar
+
+    -- 图片
+    local ImageLabel = Instance.new("ImageLabel")
+    ImageLabel.Size = UDim2.new(0, 40, 0, 40)
+    ImageLabel.Position = UDim2.new(0, 10, 0, 30)
+    ImageLabel.Image = imageID
+    ImageLabel.BackgroundTransparency = 1
+    ImageLabel.Parent = NotificationFrame
+
+    -- 进度条动画
+    local startTime = tick()
+    local duration = displayTime
+    local function updateProgressBar()
+        local elapsedTime = tick() - startTime
+        local progress = math.min(elapsedTime / duration, 1)
+        ProgressFill.Size = UDim2.new(progress, 0, 1, 0)
+        if progress == 1 then
+            NotificationFrame:Destroy() -- 移除提示框
+        end
+    end
+
+    -- 更新进度条
+    game:GetService("RunService").Heartbeat:Connect(updateProgressBar)
+end)
